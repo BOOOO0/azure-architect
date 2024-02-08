@@ -44,7 +44,19 @@
 
 - 이후 kubectl로 nginx 이미지를 pull해서 pod를 생성한 다음 그 pod를 LoadBalancer 서비스로 expose하면 퍼블릭 IP가 부여된 상태로 배포되고 접속도 가능하다.
 
+- `--enable-cluster-autoscaler --min-count 1 --max-count 3`
+
+- `az aks -r [리소스 그룹 이름] -n [클러스터 이름] update --enable-cluster-autoscaler --min-count 1 --max-count 3`
+
+- 오토 스케일링 옵션 CPU 코어 제한 고려하면 일단 노드 그룹은 지금 하나밖에 안되지만 일단 오토 스케일링을 적용한다.
+
+- `az aks update --resource-group myResourceGroup --name myAKSCluster --enable-cluster-autoscaler --min-count 1 --max-count 3` 다 생성한 후에도 업데이트 명령을 통해 오토 스케일링으로 변경이 가능하다.
+
+- `az aks update --resource-group myResourceGroup --name myAKSCluster --disable-cluster-autoscaler`로 취소할 수도 있다.
+
 - https://learn.microsoft.com/en-us/cli/azure/aks?view=azure-cli-latest
+
+- https://learn.microsoft.com/ko-kr/azure/aks/cluster-autoscaler?tabs=azure-cli
 
 ## 프로젝트에서 사용할 Wordpress 이미지 빌드해서 Azure 레지스트리에 등록
 

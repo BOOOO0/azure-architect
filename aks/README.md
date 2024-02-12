@@ -50,7 +50,7 @@
 
 - `--enable-cluster-autoscaler --min-count 1 --max-count 3`
 
-- `az aks --resource-group [리소스 그룹 이름] --name [클러스터 이름] update --enable-cluster-autoscaler --min-count 1 --max-count 3`
+- `az aks update --resource-group [리소스 그룹 이름] --name [클러스터 이름] --enable-cluster-autoscaler --min-count 1 --max-count 3`
 
 - 오토 스케일링 옵션 CPU 코어 제한 고려하면 일단 노드 그룹은 지금 하나밖에 안되지만 일단 오토 스케일링을 적용한다.
 
@@ -105,3 +105,128 @@
 - 프로젝트에서는 사설 레지스트리를 사용하는데 일단은 직접 빌드한 이미지를 바탕으로 쿠버네티스 환경에 배포하는 것이 목적이기 때문에 클라우드 레지스트리를 사용한다.
 
 - https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/
+
+## 로컬에서 Azure CLI 설치, 로그인
+
+- WSL2 우분투에서 Azure CLI를 사용해서 쿠버네티스 클러스터를 구축한다.
+
+- CPU 할당량 문제로 노드를 2개 사용하기 위해서 마스터 노드를 사용하지 않는 것으로 결정
+
+## semi2
+
+```bash
+az aks create --resource-group semi-2-weus3 --name AKSCluster --enable-managed-identity --vnet-subnet-id /subscriptions/c339a2ea-3583-481d-87b6-33490df12eb2/resourceGroups/semi-2-weus3/providers/Microsoft.Network/virtualNetworks/vn-weus3/subnets/pvt-subnet --generate-ssh-keys --node-count 2 --network-plugin azure --network-plugin-mode overlay --network-policy calico  --pod-cidr 10.244.0.0/16
+```
+
+```bash
+sudo az aks install-cli --client-version 1.27.7
+```
+
+```bash
+az aks get-credentials --resource-group semi-2-weus3 --name AKSCluster
+```
+
+```bash
+kubectl create secret generic mysql-pass --from-literal=password="wppass"
+```
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wordpress-mysql
+  labels:
+    app: wordpress
+spec:
+  selector:
+    matchLabels:
+      app: wordpress
+      tier: mysql
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: wordpress
+        tier: mysql
+    spec:
+      containers:
+        - image: mysql:5.6
+          name: mysql
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-pass
+                  key: password
+          ports:
+            - containerPort: 3306
+              name: mysql
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wordpress-mysql
+  labels:
+    app: wordpress
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3306
+  selector:
+    app: wordpress
+    tier: mysql
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wordpress
+  labels:
+    app: wordpress
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: wordpress
+      tier: frontend
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: wordpress
+        tier: frontend
+    spec:
+      containers:
+        - image: wordpress:4.8.2
+          name: wordpress
+          env:
+            - name: WORDPRESS_DB_HOST
+              value: wordpress-mysql
+            - name: WORDPRESS_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-pass
+                  key: password
+          ports:
+            - containerPort: 80
+              name: wordpress
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wordpress
+  labels:
+    app: wordpress
+spec:
+  ports:
+    - port: 80
+  selector:
+    app: wordpress
+    tier: frontend
+  type: LoadBalancer
+```
+
+```bash
+kubectl apply -f wordpress-mysql.yaml
+```
